@@ -24,9 +24,7 @@ const protect = (element) => <ProtectedRoute>{element}</ProtectedRoute>;
 export default function App() {
   return (
     <div className="app-container">
-      <a href="#main-content" className="skip-link">
-        Skip to content
-      </a>
+      
       <ScrollToTop />
 
       <div id="main-content" className="app-main" tabIndex={-1}>
