@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BarChart3,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Eye,
   ListChecks,
@@ -94,6 +95,15 @@ const dayKey = (ms) => {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 };
 
+/** Numeric score of one attempt. Falls back to correct answers if score is not a number. */
+const scoreOf = (a) => {
+  const n = Number(a?.score);
+  if (a?.score != null && a?.score !== "" && Number.isFinite(n)) return n;
+  return a?.correctAnswers || 0;
+};
+
+const trim1 = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
 /** Combine many attempts into one set of totals. */
 const aggregate = (list) => {
   const t = {
@@ -103,6 +113,8 @@ const aggregate = (list) => {
     wrong: 0,
     ungraded: 0,
     seconds: 0,
+    marks: 0,
+    totalQ: 0,
   };
   list.forEach((a) => {
     t.attempted += a.attemptedQuestions || 0;
@@ -110,6 +122,8 @@ const aggregate = (list) => {
     t.wrong += a.wrongAnswers || 0;
     t.ungraded += a.ungradedQuestions || 0;
     t.seconds += a.timeTakenSeconds || 0;
+    t.marks += scoreOf(a);
+    t.totalQ += a.totalQuestions || 0;
   });
   t.graded = t.correct + t.wrong;
   t.accuracy = t.graded > 0 ? Math.round((t.correct / t.graded) * 100) : null;
@@ -124,6 +138,8 @@ const statusOf = (accuracy, graded) => {
   if (accuracy >= STRONG_FROM) return { label: "Strong", tone: "emerald" };
   return { label: "Average", tone: "amber" };
 };
+
+const byAccuracyAsc = (a, b) => (a.accuracy ?? 101) - (b.accuracy ?? 101);
 
 const TONES = {
   emerald: {
@@ -217,6 +233,111 @@ function AccuracyBar({ accuracy, tone }) {
         className={`h-full rounded-full transition-all duration-300 ${TONES[tone].bar}`}
         style={{ width: `${accuracy ?? 0}%` }}
       />
+    </div>
+  );
+}
+
+/** One-line numbers shown under every subject / chapter / topic row. */
+function ScoreLine({ agg }) {
+  return (
+    <p className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-slate-500">
+      <span>
+        Score:{" "}
+        <strong className="font-semibold text-slate-700">
+          {trim1(agg.marks)}/{agg.totalQ}
+        </strong>
+      </span>
+      <span>
+        <strong className="font-semibold text-emerald-700">{agg.correct}</strong> right
+      </span>
+      <span>
+        <strong className="font-semibold text-rose-700">{agg.wrong}</strong> wrong
+      </span>
+      <span>{agg.attempted} attempted</span>
+      <span>{agg.attempts} sets</span>
+      {agg.secPerQ != null && <span>{agg.secPerQ}s per Q</span>}
+    </p>
+  );
+}
+
+/** Expandable row used for subject and chapter levels. */
+function GroupRow({ name, agg, expanded, onToggle, count, countLabel, size = "lg", children }) {
+  const st = statusOf(agg.accuracy, agg.graded);
+  const isLg = size === "lg";
+  return (
+    <div
+      className={
+        isLg
+          ? "rounded-xl border border-slate-200 bg-white p-3.5"
+          : "rounded-lg border border-slate-200/80 bg-slate-50/60 p-3"
+      }
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="flex w-full items-start justify-between gap-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className={`truncate font-bold ${isLg ? "text-sm" : "text-[13px]"}`}>{name}</p>
+            <span
+              className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${TONES[st.tone].chip}`}
+            >
+              {st.label}
+            </span>
+          </div>
+          <div className="mt-2">
+            <AccuracyBar accuracy={agg.accuracy} tone={st.tone} />
+          </div>
+          <ScoreLine agg={agg} />
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className={`font-extrabold tabular-nums ${isLg ? "text-base" : "text-sm"}`}>
+            {agg.accuracy == null ? "--" : `${agg.accuracy}%`}
+          </span>
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500">
+            {count} {countLabel}
+            <ChevronDown
+              size={14}
+              aria-hidden="true"
+              className={`transition-transform ${expanded ? "rotate-180" : ""}`}
+            />
+          </span>
+        </div>
+      </button>
+      {expanded && <div className="mt-3 space-y-2.5">{children}</div>}
+    </div>
+  );
+}
+
+/** Leaf row: one topic. */
+function TopicRow({ topic, showLevel }) {
+  const st = statusOf(topic.accuracy, topic.graded);
+  return (
+    <div className="rounded-lg border border-slate-200/80 bg-white p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <p className="truncate text-[13px] font-bold">{topic.name}</p>
+          {showLevel && (
+            <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold capitalize text-indigo-800">
+              {topic.level}
+            </span>
+          )}
+          <span
+            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${TONES[st.tone].chip}`}
+          >
+            {st.label}
+          </span>
+        </div>
+        <span className="shrink-0 text-sm font-extrabold tabular-nums">
+          {topic.accuracy == null ? "--" : `${topic.accuracy}%`}
+        </span>
+      </div>
+      <div className="mt-2">
+        <AccuracyBar accuracy={topic.accuracy} tone={st.tone} />
+      </div>
+      <ScoreLine agg={topic} />
     </div>
   );
 }
@@ -374,10 +495,21 @@ export default function Statistics() {
   const [subject, setSubject] = useState("all");
   const [level, setLevel] = useState("all");
 
+  // Subject / chapter expand state (keys of open rows)
+  const [openRows, setOpenRows] = useState(() => new Set());
+
   // Saved scores delete & pagination states
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [showAllScores, setShowAllScores] = useState(false);
+
+  const toggleRow = (key) =>
+    setOpenRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   useEffect(() => {
     let cancelled = false;
@@ -455,16 +587,58 @@ export default function Statistics() {
     [filtered]
   );
 
-  const subjectRows = useMemo(() => {
-    const map = new Map();
+  /**
+   * Subject -> Chapter -> Topic tree.
+   * Every node carries its own aggregate (score, accuracy, speed).
+   */
+  const subjectTree = useMemo(() => {
+    const subjects = new Map();
+
     filtered.forEach((a) => {
-      const key = a.subjectId || "unknown";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(a);
+      const sId = a.subjectId || "unknown";
+      if (!subjects.has(sId)) {
+        subjects.set(sId, { id: sId, name: pretty(sId), list: [], chapters: new Map() });
+      }
+      const s = subjects.get(sId);
+      s.list.push(a);
+
+      const cKey = a.chapterId || a.chapterName || "other";
+      if (!s.chapters.has(cKey)) {
+        s.chapters.set(cKey, {
+          key: `${sId}/${cKey}`,
+          name: a.chapterName || (a.chapterId ? pretty(a.chapterId) : "Other"),
+          list: [],
+          topics: new Map(),
+        });
+      }
+      const c = s.chapters.get(cKey);
+      c.list.push(a);
+
+      const tKey = a.topicId || a.topicName || "general";
+      if (!c.topics.has(tKey)) {
+        c.topics.set(tKey, {
+          key: `${c.key}/${tKey}`,
+          name: a.topicName || (a.topicId ? pretty(a.topicId) : "General practice"),
+          level: (a.examLevel || "prelims").toLowerCase(),
+          list: [],
+        });
+      }
+      c.topics.get(tKey).list.push(a);
     });
-    return [...map.entries()]
-      .map(([id, list]) => ({ id, name: pretty(id), ...aggregate(list) }))
-      .sort((a, b) => (a.accuracy ?? 101) - (b.accuracy ?? 101));
+
+    return [...subjects.values()]
+      .map((s) => {
+        const chapters = [...s.chapters.values()]
+          .map((c) => {
+            const topics = [...c.topics.values()]
+              .map((t) => ({ ...t, ...aggregate(t.list) }))
+              .sort(byAccuracyAsc);
+            return { ...c, ...aggregate(c.list), topics };
+          })
+          .sort(byAccuracyAsc);
+        return { id: s.id, name: s.name, ...aggregate(s.list), chapters };
+      })
+      .sort(byAccuracyAsc);
   }, [filtered]);
 
   const topicRows = useMemo(() => {
@@ -511,6 +685,17 @@ export default function Statistics() {
     () => (showAllScores ? filtered : filtered.slice(0, 6)),
     [filtered, showAllScores]
   );
+
+  const expandAll = () => {
+    const all = new Set();
+    subjectTree.forEach((s) => {
+      all.add(s.id);
+      s.chapters.forEach((c) => all.add(c.key));
+    });
+    setOpenRows(all);
+  };
+
+  const collapseAll = () => setOpenRows(new Set());
 
   /* ----------------------------- render ----------------------------- */
   return (
@@ -701,37 +886,51 @@ export default function Statistics() {
                   )}
                 </Card>
 
-                {/* Subject wise */}
-                <Card title="Subject wise" subtitle="Lowest accuracy first.">
-                  <ul className="space-y-4">
-                    {subjectRows.map((s) => {
-                      const st = statusOf(s.accuracy, s.graded);
-                      return (
-                        <li key={s.id}>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <p className="truncate text-sm font-bold">{s.name}</p>
-                              <span
-                                className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${TONES[st.tone].chip}`}
-                              >
-                                {st.label}
-                              </span>
-                            </div>
-                            <span className="shrink-0 text-sm font-extrabold tabular-nums">
-                              {s.accuracy == null ? "--" : `${s.accuracy}%`}
-                            </span>
-                          </div>
-                          <div className="mt-2">
-                            <AccuracyBar accuracy={s.accuracy} tone={st.tone} />
-                          </div>
-                          <p className="mt-1.5 text-xs text-slate-500">
-                            {s.attempted} attempted, {s.attempts} sets
-                            {s.secPerQ != null ? `, ${s.secPerQ}s per Q` : ""}
-                          </p>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                {/* Subject > Chapter > Topic wise scores */}
+                <Card
+                  title="Subject, chapter and topic wise score"
+                  subtitle="Lowest accuracy first. Subject kholo to chapters, chapter kholo to topics."
+                  action={
+                    <div className="flex shrink-0 items-center gap-3 text-xs font-bold text-emerald-700">
+                      <button type="button" onClick={expandAll} className="hover:text-emerald-800">
+                        Expand all
+                      </button>
+                      <button type="button" onClick={collapseAll} className="hover:text-emerald-800">
+                        Collapse
+                      </button>
+                    </div>
+                  }
+                >
+                  <div className="space-y-3">
+                    {subjectTree.map((s) => (
+                      <GroupRow
+                        key={s.id}
+                        name={s.name}
+                        agg={s}
+                        count={s.chapters.length}
+                        countLabel={s.chapters.length === 1 ? "chapter" : "chapters"}
+                        expanded={openRows.has(s.id)}
+                        onToggle={() => toggleRow(s.id)}
+                      >
+                        {s.chapters.map((c) => (
+                          <GroupRow
+                            key={c.key}
+                            size="sm"
+                            name={c.name}
+                            agg={c}
+                            count={c.topics.length}
+                            countLabel={c.topics.length === 1 ? "topic" : "topics"}
+                            expanded={openRows.has(c.key)}
+                            onToggle={() => toggleRow(c.key)}
+                          >
+                            {c.topics.map((t) => (
+                              <TopicRow key={t.key} topic={t} showLevel={level === "all"} />
+                            ))}
+                          </GroupRow>
+                        ))}
+                      </GroupRow>
+                    ))}
+                  </div>
                 </Card>
 
                 {/* Strong topics */}
