@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
+  Award,
   BookOpen,
   CheckCircle2,
   Clock,
@@ -19,6 +20,25 @@ import {
 } from "../services/topicService";
 
 const formatNumber = (value) => new Intl.NumberFormat("en-IN").format(value);
+
+const toMillis = (ts) => {
+  if (!ts) return 0;
+  if (typeof ts.toMillis === "function") return ts.toMillis();
+  if (typeof ts.seconds === "number") return ts.seconds * 1000;
+  const parsed = Date.parse(ts);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const fmtDateTime = (ms) =>
+  ms
+    ? new Date(ms).toLocaleString("en-IN", {
+        day: "numeric",
+        month: "short",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : "Just now";
 
 function computeLevelStats(attempts, chapterId, level) {
   const normalizedLevel = level.toLowerCase();
@@ -55,6 +75,21 @@ function computeLevelStats(attempts, chapterId, level) {
     accuracy,
     avgTimePerQuestion,
   };
+}
+
+function computeLastExam(attempts, chapterId, level = null) {
+  const normalizedLevel = level ? level.toLowerCase() : null;
+  const matching = attempts
+    .filter((item) => {
+      if (item.chapterId !== chapterId) return false;
+      if (normalizedLevel && (item.examLevel || "").toLowerCase() !== normalizedLevel) {
+        return false;
+      }
+      return true;
+    })
+    .sort((a, b) => toMillis(b.submittedAt) - toMillis(a.submittedAt));
+
+  return matching[0] || null;
 }
 
 function MetricTile({ icon: Icon, label, value, highlight = false }) {
@@ -191,8 +226,19 @@ export default function ChapterDashboard() {
     [attempts, chapterId]
   );
 
+  const prelimsLastExam = useMemo(
+    () => computeLastExam(attempts, chapterId, "prelims"),
+    [attempts, chapterId]
+  );
+
+  const mainsLastExam = useMemo(
+    () => computeLastExam(attempts, chapterId, "mains"),
+    [attempts, chapterId]
+  );
+
   const isPrelims = activeLevel === "prelims";
   const currentStats = isPrelims ? prelimsStats : mainsStats;
+  const currentLastExam = isPrelims ? prelimsLastExam : mainsLastExam;
   const currentTopics = isPrelims ? prelimsTopics : mainsTopics;
   const isCurrentLevelAvailable = isPrelims ? prelimsAvailable : mainsAvailable;
   const chapterNum = String(chapter?.order || 1).padStart(2, "0");
@@ -201,6 +247,12 @@ export default function ChapterDashboard() {
     navigate(`/chapter/${chapterId}/${activeLevel}/topics`, {
       state: { subjectId, chapter },
     });
+
+  const formatScoreValue = (exam) => {
+    if (!exam) return "—";
+    if (exam.score != null) return exam.score;
+    return `${exam.correctAnswers ?? 0}/${exam.totalQuestions ?? 0}`;
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
@@ -211,10 +263,11 @@ export default function ChapterDashboard() {
             <button
               type="button"
               onClick={() => navigate(`/subject/${subjectId}`)}
+              aria-label={`Back to ${subjectName}`}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:border-emerald-200 hover:bg-emerald-50/60 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:text-sm"
             >
               <ArrowLeft size={16} aria-hidden="true" />
-              <span className="hidden sm:inline">{subjectName}</span>
+              <span className="hidden sm:inline">Back</span>
             </button>
 
             <div className="min-w-0">
@@ -279,6 +332,10 @@ export default function ChapterDashboard() {
                         prelimsStats.accuracy === null
                           ? "Not graded"
                           : `${prelimsStats.accuracy}% Accuracy`
+                      }${
+                        prelimsLastExam
+                          ? ` · Last: ${formatScoreValue(prelimsLastExam)}`
+                          : ""
                       }`
                     : "Not applicable"}
                 </span>
@@ -305,6 +362,10 @@ export default function ChapterDashboard() {
                         mainsStats.accuracy === null
                           ? "Not graded"
                           : `${mainsStats.accuracy}% Accuracy`
+                      }${
+                        mainsLastExam
+                          ? ` · Last: ${formatScoreValue(mainsLastExam)}`
+                          : ""
                       }`
                     : "Not applicable"}
                 </span>
@@ -379,6 +440,48 @@ export default function ChapterDashboard() {
                         : `${currentStats.avgTimePerQuestion}s`
                     }
                   />
+                </div>
+
+                {/* Last Exam Score Strip */}
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3.5">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-emerald-600">
+                      <Award size={18} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold tracking-[0.12em] text-slate-400 uppercase">
+                        Last Exam Score
+                      </p>
+                      {currentLastExam ? (
+                        <p className="truncate text-sm font-bold text-slate-900">
+                          {formatScoreValue(currentLastExam)}{" "}
+                          <span className="font-medium text-slate-500">
+                            · {currentLastExam.topicName || chapter?.name} ·{" "}
+                            {fmtDateTime(toMillis(currentLastExam.submittedAt))}
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="text-sm font-medium text-slate-500">
+                          No exam attempted yet for this chapter
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {currentLastExam && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(`/statistics/${currentLastExam.id}`, {
+                          state: { attempt: currentLastExam },
+                        })
+                      }
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:border-emerald-200 hover:bg-emerald-50/60 hover:text-emerald-800"
+                    >
+                      <span>View Details</span>
+                      <ArrowRight size={14} aria-hidden="true" />
+                    </button>
+                  )}
                 </div>
               </section>
             ) : (

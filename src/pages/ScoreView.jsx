@@ -28,6 +28,28 @@ const pretty = (s) =>
     .replace(/[-_]+/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
+const getBookLabel = (attempt) => {
+  const raw =
+    attempt?.bookName ||
+    attempt?.bookTitle ||
+    attempt?.book ||
+    attempt?.sourceName ||
+    attempt?.pdfName ||
+    "";
+  return raw ? pretty(raw) : null;
+};
+
+const getSetLabel = (attempt) => {
+  const raw =
+    attempt?.setName ||
+    attempt?.setTitle ||
+    attempt?.setLabel ||
+    (attempt?.setNumber != null ? `Set ${attempt.setNumber}` : "") ||
+    attempt?.setId ||
+    "";
+  return raw ? pretty(raw) : null;
+};
+
 const fmtDuration = (sec) => {
   const s = Math.round(sec || 0);
   if (s < 60) return `${s}s`;
@@ -142,7 +164,6 @@ export default function ScoreView() {
     try {
       await deleteExamAttempt(attempt.id);
 
-      // Runs in the background: a sync failure won't count as a delete failure
       if (currentUser) {
         syncUserLeaderboard(currentUser).catch((err) => {
           console.error("Leaderboard sync failed:", err);
@@ -166,6 +187,8 @@ export default function ScoreView() {
   const secPerQ =
     attempted > 0 ? Math.round((attempt?.timeTakenSeconds || 0) / attempted) : null;
   const st = statusOf(attempt?.accuracy, Math.max(graded, MIN_GRADED));
+  const bookLabel = getBookLabel(attempt);
+  const setLabel = getSetLabel(attempt);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
@@ -262,9 +285,21 @@ export default function ScoreView() {
                     {pretty(attempt.subjectId)}
                   </span>
                 )}
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-slate-700">
-                  {pretty(attempt.examLevel || "prelims")}
-                </span>
+                {attempt.examLevel && (
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-slate-700">
+                    {pretty(attempt.examLevel)}
+                  </span>
+                )}
+                {bookLabel && (
+                  <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-indigo-800">
+                    Book: {bookLabel}
+                  </span>
+                )}
+                {setLabel && (
+                  <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-sky-800">
+                    Set: {setLabel}
+                  </span>
+                )}
                 <span
                   className={`rounded-full border px-2.5 py-0.5 ${
                     graded > 0 ? TONES[st.tone] : TONES.slate

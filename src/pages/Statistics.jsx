@@ -43,6 +43,28 @@ const pretty = (s) =>
     .replace(/[-_]+/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
+const getBookLabel = (attempt) => {
+  const raw =
+    attempt?.bookName ||
+    attempt?.bookTitle ||
+    attempt?.book ||
+    attempt?.sourceName ||
+    attempt?.pdfName ||
+    "";
+  return raw ? pretty(raw) : null;
+};
+
+const getSetLabel = (attempt) => {
+  const raw =
+    attempt?.setName ||
+    attempt?.setTitle ||
+    attempt?.setLabel ||
+    (attempt?.setNumber != null ? `Set ${attempt.setNumber}` : "") ||
+    attempt?.setId ||
+    "";
+  return raw ? pretty(raw) : null;
+};
+
 const fmtDuration = (sec) => {
   const s = Math.round(sec || 0);
   if (s < 60) return `${s}s`;
@@ -761,6 +783,8 @@ export default function Statistics() {
                       const st = statusOf(a.accuracy, Math.max(graded, MIN_GRADED));
                       const isConfirming = confirmDeleteId === a.id;
                       const isDeleting = deletingId === a.id;
+                      const bookLabel = getBookLabel(a);
+                      const setLabel = getSetLabel(a);
 
                       return (
                         <li
@@ -768,9 +792,21 @@ export default function Statistics() {
                           className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
                         >
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-bold">
-                              {a.topicName || a.chapterName || "Practice set"}
-                            </p>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <p className="truncate text-sm font-bold">
+                                {a.topicName || a.chapterName || "Practice set"}
+                              </p>
+                              {bookLabel && (
+                                <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-800">
+                                  {bookLabel}
+                                </span>
+                              )}
+                              {setLabel && (
+                                <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-800">
+                                  {setLabel}
+                                </span>
+                              )}
+                            </div>
                             <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-slate-500">
                               <span className="inline-flex items-center gap-1 font-medium text-slate-600">
                                 <Clock size={11} aria-hidden="true" />

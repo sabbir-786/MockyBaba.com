@@ -79,6 +79,7 @@ const buildTopics = (subjectId, chapterId, defaults, items) => {
 
 const R = "reasoning";
 const A = "aptitude";
+const M = "manual";
 
 /* ------------------------------------------------------------------ */
 /* Default Per-Question Timers (in seconds) for Chapters               */
@@ -239,14 +240,11 @@ export const DEFAULT_TOPICS = {
   ]),
 
   /* ---------------- APTITUDE ---------------- */
-  simplification_approximation: buildTopics(A, "simplification_approximation", { p: 25, m: 40 }, [
-    ["Square, Cube, Roots", "pm", { p: 20, m: 35 }],
-    ["BODMAS", "pm", { p: 20, m: 35 }],
-    ["Fraction Based", "pm", { p: 25, m: 40 }],
-    ["Percentage Based", "pm", { p: 25, m: 40 }],
-    ["Surds & Indices", "pm", { p: 25, m: 45 }],
-    ["Prelims Approximation", "p", 25],
-    ["Mains Approximation", "m", 45]
+  // Single-level topics (no Pre/Mains split needed)
+  simplification_approximation: buildTopics(A, "simplification_approximation", { p: 25, m: 25 }, [
+    ["Simplification", "p", 25],
+    ["Approximation", "p", 25],
+    ["Mixture of Simplification & Approximation", "p", 25]
   ]),
 
   number_series: buildTopics(A, "number_series", { p: 35, m: 65 }, [
@@ -273,6 +271,43 @@ export const DEFAULT_TOPICS = {
   number_system_algebra: buildTopics(A, "number_system_algebra", { p: 45, m: 85 }, [
     ["Number System", "pm", { p: 45, m: 85 }],
     ["Algebra (Mains)", "m", 90]
+  ]),
+
+  /* ---------------- MANUAL (No Pre/Mains split) ---------------- */
+  manual_sectional_mock: buildTopics(M, "manual_sectional_mock", { p: 40, m: 40 }, [
+    ["Reasoning Sectional Sheet", "p", 40],
+    ["Aptitude Sectional Sheet", "p", 40],
+    ["English Sectional Sheet", "p", 35]
+  ]),
+
+  manual_full_mock: buildTopics(M, "manual_full_mock", { p: 40, m: 40 }, [
+    ["Prelims Full Mock (100 Qs)", "p", 36],
+    ["Mains Full Mock (150 Qs)", "p", 72],
+    ["Custom Question Count Sheet", "p", 45]
+  ]),
+
+  manual_speed_drill: buildTopics(M, "manual_speed_drill", { p: 25, m: 25 }, [
+    ["Simplification & Speed Math Drill", "p", 20],
+    ["Inequality & Syllogism Drill", "p", 25],
+    ["Mixed 20-Question Sprint", "p", 25]
+  ]),
+
+  manual_puzzle_set: buildTopics(M, "manual_puzzle_set", { p: 50, m: 50 }, [
+    ["Single Puzzle / Seating Set (5 Qs)", "p", 45],
+    ["Multi-Set Puzzle Practice (20 Qs)", "p", 55],
+    ["Data Interpretation Set Practice", "p", 60]
+  ]),
+
+  manual_pdf_sheet: buildTopics(M, "manual_pdf_sheet", { p: 45, m: 45 }, [
+    ["Checklist / Daily Target PDF", "p", 45],
+    ["Book Exercise Sheet", "p", 45],
+    ["Previous Year Paper PDF", "p", 45]
+  ]),
+
+  manual_revision_set: buildTopics(M, "manual_revision_set", { p: 45, m: 45 }, [
+    ["Re-attempt Incorrect Questions", "p", 45],
+    ["Skipped Questions Practice", "p", 45],
+    ["Bookmarked Questions Drill", "p", 45]
   ])
 };
 
@@ -301,6 +336,9 @@ const makeChapter = (subjectId, order, id, name, levels = "pm", extra = {}) => (
 // Reasoning chapters have a "Conceptual Explanation" and "Solutions" section
 const RS = { hasConcept: true, hasSolutions: true };
 
+// Chapters that bypass Pre/Mains selection and open topics directly
+const NO_LEVEL = { skipLevel: true };
+
 export const DEFAULT_CHAPTERS = {
   reasoning: [
     makeChapter(R, 1, "alphanumeric_series", "Alphanumeric Series", "pm", RS),
@@ -317,7 +355,7 @@ export const DEFAULT_CHAPTERS = {
     makeChapter(R, 12, "order_ranking", "Order and Ranking", "p", RS)
   ],
   aptitude: [
-    makeChapter(A, 1, "simplification_approximation", "Simplification & Approximation"),
+    makeChapter(A, 1, "simplification_approximation", "Simplification & Approximation", "p", NO_LEVEL),
     makeChapter(A, 2, "number_series", "Number Series"),
     makeChapter(A, 3, "quadratic_equations", "Quadratic Equation"),
     makeChapter(A, 4, "ratio_proportion", "Ratio and Proportion"),
@@ -340,12 +378,12 @@ export const DEFAULT_CHAPTERS = {
     makeChapter(A, 21, "number_system_algebra", "Number System & Algebra")
   ],
   manual: [
-    makeChapter("manual", 1, "manual_sectional_mock", "Sectional Timed Practice"),
-    makeChapter("manual", 2, "manual_full_mock", "Full-Length Answer Sheet"),
-    makeChapter("manual", 3, "manual_speed_drill", "Speed Drill OMR", "p"),
-    makeChapter("manual", 4, "manual_puzzle_set", "Puzzle & DI Set Practice"),
-    makeChapter("manual", 5, "manual_pdf_sheet", "PDF / Book Practice Sheet"),
-    makeChapter("manual", 6, "manual_revision_set", "Error-Log Revision Sheet")
+    makeChapter(M, 1, "manual_sectional_mock", "Sectional Timed Practice", "p", NO_LEVEL),
+    makeChapter(M, 2, "manual_full_mock", "Full-Length Answer Sheet", "p", NO_LEVEL),
+    makeChapter(M, 3, "manual_speed_drill", "Speed Drill OMR", "p", NO_LEVEL),
+    makeChapter(M, 4, "manual_puzzle_set", "Puzzle & DI Set Practice", "p", NO_LEVEL),
+    makeChapter(M, 5, "manual_pdf_sheet", "PDF / Book Practice Sheet", "p", NO_LEVEL),
+    makeChapter(M, 6, "manual_revision_set", "Error-Log Revision Sheet", "p", NO_LEVEL)
   ]
 };
 
@@ -414,7 +452,11 @@ export const getChapterById = async (chapterId) => {
 };
 
 export const getTopicsByChapterAndLevel = async (chapterId, examLevel, track = null) => {
-  const normalizedLevel = (examLevel || "prelims").toLowerCase();
+  const chapter = findDefaultChapterById(chapterId);
+  // Force "prelims" internally for single-level chapters (Simplification & Manual)
+  const normalizedLevel = chapter?.skipLevel
+    ? "prelims"
+    : (examLevel || "prelims").toLowerCase();
 
   try {
     const q = query(
@@ -454,7 +496,6 @@ export const getTopicsByChapterAndLevel = async (chapterId, examLevel, track = n
   }
 
   // Generic fallback for chapters without detailed topics yet
-  const chapter = findDefaultChapterById(chapterId);
   const subjectId = chapter?.subjectId || "reasoning";
   const chapterName = chapter?.name || chapterId.replace(/_/g, " ");
   const defaultSec = getDefaultTimeForChapter(chapterId, normalizedLevel);
@@ -466,7 +507,7 @@ export const getTopicsByChapterAndLevel = async (chapterId, examLevel, track = n
       subjectId,
       examLevel: normalizedLevel,
       track: "both",
-      name: `${chapterName} – Set 1 (Foundation)`,
+      name: `${chapterName} – Foundation`,
       defaultTimePerQuestionSeconds: defaultSec,
       order: 1
     },
@@ -476,7 +517,7 @@ export const getTopicsByChapterAndLevel = async (chapterId, examLevel, track = n
       subjectId,
       examLevel: normalizedLevel,
       track: "both",
-      name: `${chapterName} – Set 2 (Exam Level)`,
+      name: `${chapterName} – Exam Level`,
       defaultTimePerQuestionSeconds: defaultSec + 10,
       order: 2
     },
