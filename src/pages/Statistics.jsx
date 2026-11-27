@@ -311,6 +311,65 @@ function GroupRow({ name, agg, expanded, onToggle, count, countLabel, size = "lg
   );
 }
 
+/** Book + Set wise breakdown for a list of attempts (latest first). */
+function BookSetList({ list }) {
+  const rows = useMemo(() => {
+    const map = new Map();
+    list.forEach((a) => {
+      const book = getBookLabel(a) || "No book";
+      const set = getSetLabel(a) || "No set";
+      const key = `${book}||${set}`;
+      if (!map.has(key)) map.set(key, { key, book, set, list: [], last: 0 });
+      const r = map.get(key);
+      r.list.push(a);
+      r.last = Math.max(r.last, toMillis(a.submittedAt));
+    });
+    return [...map.values()]
+      .map((r) => ({ ...r, ...aggregate(r.list) }))
+      .sort((a, b) => b.last - a.last);
+  }, [list]);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <ul className="mt-2.5 divide-y divide-slate-100 rounded-lg border border-slate-200/80 bg-slate-50/60">
+      {rows.map((r) => {
+        const st = statusOf(r.accuracy, MIN_GRADED);
+        return (
+          <li key={r.key} className="flex items-center justify-between gap-2 px-2.5 py-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-800">
+                {r.book}
+              </span>
+              <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-800">
+                {r.set}
+              </span>
+              {r.attempts > 1 && (
+                <span className="text-[10px] font-medium text-slate-500">{r.attempts}x</span>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2 text-xs">
+              <span className="text-slate-500">
+                Score:{" "}
+                <strong className="font-semibold text-slate-700">
+                  {trim1(r.marks)}/{r.totalQ}
+                </strong>
+              </span>
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[11px] font-bold tabular-nums ${
+                  r.graded > 0 ? TONES[st.tone].chip : TONES.slate.chip
+                }`}
+              >
+                {r.accuracy == null ? "--" : `${r.accuracy}%`}
+              </span>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /** Leaf row: one topic. */
 function TopicRow({ topic, showLevel }) {
   const st = statusOf(topic.accuracy, topic.graded);
@@ -338,6 +397,7 @@ function TopicRow({ topic, showLevel }) {
         <AccuracyBar accuracy={topic.accuracy} tone={st.tone} />
       </div>
       <ScoreLine agg={topic} />
+      <BookSetList list={topic.list} />
     </div>
   );
 }
@@ -879,6 +939,7 @@ export default function Statistics() {
                                   : "Fast but wrong: careless or trap"}
                               </span>
                             </div>
+                            <BookSetList list={t.list} />
                           </li>
                         );
                       })}
