@@ -4,9 +4,10 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  deleteDoc,
   query,
   where,
-  serverTimestamp
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 
@@ -28,16 +29,6 @@ const sortNewestFirst = (items) =>
 /* ------------------------------------------------------------------ */
 /* Build an attempt record from a finished practice session            */
 /* ------------------------------------------------------------------ */
-/**
- * Turns the in-browser practice session into a Firestore-ready record.
- * Firestore rejects `undefined`, so every optional value falls back to null.
- *
- * Counting rules (same as the results screen):
- *  - attempted    = question has a marked answer
- *  - correct/wrong = attempted AND the actual answer was entered in grading
- *  - ungraded     = attempted but actual answer not entered yet
- *  - accuracy     = correct / (correct + wrong), rounded %
- */
 export const buildAttemptFromSession = (userId, session) => {
   const { startQuestion, endQuestion, answers = {}, meta = {} } = session;
   const totalQuestions = endQuestion - startQuestion + 1;
@@ -112,17 +103,13 @@ export const buildAttemptFromSession = (userId, session) => {
     startedAt: session.startedAt ? new Date(session.startedAt) : new Date(),
 
     // Per-question detail (used later for weak-topic analysis)
-    answers: answerMap
+    answers: answerMap,
   };
 };
 
 /* ------------------------------------------------------------------ */
 /* Write                                                               */
 /* ------------------------------------------------------------------ */
-/**
- * Creates or updates an exam attempt record in Firestore.
- * Stamps submittedAt with serverTimestamp().
- */
 export const saveExamAttempt = async (attemptData) => {
   const { id, ...data } = attemptData;
   const docRef = doc(db, COLLECTION, id);
@@ -131,7 +118,7 @@ export const saveExamAttempt = async (attemptData) => {
     docRef,
     {
       ...data,
-      submittedAt: serverTimestamp()
+      submittedAt: serverTimestamp(),
     },
     { merge: true }
   );
@@ -139,11 +126,6 @@ export const saveExamAttempt = async (attemptData) => {
   return id;
 };
 
-/**
- * Saves a finished practice session as a new attempt and returns its id.
- * Pass an existing attemptId to update the same record (prevents duplicates
- * if the user taps Finish twice).
- */
 export const savePracticeAttempt = async (userId, session, existingAttemptId = null) => {
   if (!userId) throw new Error("You must be signed in to save results.");
 
@@ -155,22 +137,25 @@ export const savePracticeAttempt = async (userId, session, existingAttemptId = n
 };
 
 /* ------------------------------------------------------------------ */
-/* Read                                                                */
+/* Delete                                                              */
 /* ------------------------------------------------------------------ */
 /**
- * Fetches a single exam attempt by its unique attemptId.
+ * Deletes a single exam attempt by its document ID.
  */
+export const deleteExamAttempt = async (attemptId) => {
+  if (!attemptId) throw new Error("Attempt ID is required to delete.");
+  await deleteDoc(doc(db, COLLECTION, attemptId));
+};
+
+/* ------------------------------------------------------------------ */
+/* Read                                                                */
+/* ------------------------------------------------------------------ */
 export const getExamAttempt = async (attemptId) => {
   if (!attemptId) return null;
   const snap = await getDoc(doc(db, COLLECTION, attemptId));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 };
 
-/**
- * Fetches all completed attempts for a user, newest first.
- * Uses one equality filter (no composite index needed); status filter and
- * sorting happen in the browser.
- */
 export const getUserExamHistory = async (userId) => {
   if (!userId) return [];
 
@@ -184,9 +169,6 @@ export const getUserExamHistory = async (userId) => {
   );
 };
 
-/**
- * Fetches the most recent completed attempt for a topic and exam level.
- */
 export const getLatestTopicAttempt = async (userId, topicId, examLevel) => {
   if (!userId || !topicId) return null;
   const normalizedLevel = (examLevel || "prelims").toLowerCase();

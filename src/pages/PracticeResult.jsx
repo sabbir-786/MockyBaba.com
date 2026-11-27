@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
+  BarChart3,
   CheckCircle2,
   Clock,
   Home,
@@ -83,7 +84,7 @@ export default function PracticeResult() {
   const saved = Boolean(session.attemptId);
   const meta = session.meta || {};
 
-  const leaveTo = (path) => {
+  const leaveTo = (path, navOptions) => {
     if (
       !saved &&
       !window.confirm(
@@ -93,7 +94,20 @@ export default function PracticeResult() {
       return;
     }
     clearSession();
-    navigate(path);
+    navigate(path, navOptions);
+  };
+
+  const openSavedScore = () => {
+    if (!session.attemptId) return;
+    leaveTo(`/statistics/${session.attemptId}`, {
+      state: {
+        attempt: {
+          id: session.attemptId,
+          ...attempt,
+          submittedAt: session.savedAt || Date.now(),
+        },
+      },
+    });
   };
 
   const subtitle = [
@@ -162,25 +176,21 @@ export default function PracticeResult() {
               )}
             </span>
 
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
-                saved
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-amber-200 bg-amber-50 text-amber-800"
-              }`}
-            >
-              {saved ? (
-                <>
-                  <CheckCircle2 size={14} className="text-emerald-600" aria-hidden="true" />
-                  <span>Result saved</span>
-                </>
-              ) : (
-                <>
-                  <AlertTriangle size={14} className="text-amber-600" aria-hidden="true" />
-                  <span>Result saved nahi hua</span>
-                </>
-              )}
-            </span>
+            {saved ? (
+              <button
+                type="button"
+                onClick={openSavedScore}
+                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-100"
+              >
+                <CheckCircle2 size={14} className="text-emerald-600" aria-hidden="true" />
+                <span>Result saved · View</span>
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+                <AlertTriangle size={14} className="text-amber-600" aria-hidden="true" />
+                <span>Result saved nahi hua</span>
+              </span>
+            )}
           </div>
 
           <div className="mt-5">
@@ -362,20 +372,20 @@ export default function PracticeResult() {
 
           <button
             type="button"
-            onClick={() => navigate("/practice/grading")}
+            onClick={() => leaveTo("/statistics")}
             className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-700 shadow-2xs transition-colors hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
           >
-            <ArrowLeft size={16} aria-hidden="true" />
-            <span>Back to Grading</span>
+            <BarChart3 size={16} aria-hidden="true" />
+            <span>Statistics</span>
           </button>
 
           <button
             type="button"
-            onClick={() => leaveTo("/")}
+            onClick={() => navigate("/practice/grading")}
             className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-700 shadow-2xs transition-colors hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
           >
-            <Home size={16} aria-hidden="true" />
-            <span>Home</span>
+            <ArrowLeft size={16} aria-hidden="true" />
+            <span>Grading</span>
           </button>
         </div>
       </main>

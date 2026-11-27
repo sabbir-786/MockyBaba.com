@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { savePracticeAttempt } from "../services/examService";
+import { syncUserLeaderboard } from "../services/leaderboardService";
 import { loadSession, saveSession } from "../utils/mockSession.js";
 
 const OPTIONS = ["A", "B", "C", "D", "E"];
@@ -82,6 +83,14 @@ export default function PracticeGrading() {
       const next = { ...session, attemptId, savedAt: Date.now() };
       saveSession(next);
       setSession(next);
+
+      // Runs in the background: a sync failure won't count as a save failure
+      if (currentUser) {
+        syncUserLeaderboard(currentUser).catch((err) => {
+          console.error("Leaderboard sync failed:", err);
+        });
+      }
+
       navigate("/practice/result");
     } catch (err) {
       console.error("Failed to save practice attempt:", err);
@@ -236,9 +245,10 @@ export default function PracticeGrading() {
                       <button
                         key={opt}
                         type="button"
+                        disabled={saving}
                         aria-pressed={selected}
                         onClick={() => setActual(q, opt)}
-                        className={`flex h-10 w-full cursor-pointer items-center justify-center rounded-xl border text-sm font-bold transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 active:scale-95 sm:h-11 ${
+                        className={`flex h-10 w-full cursor-pointer items-center justify-center rounded-xl border text-sm font-bold transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 ${
                           selected
                             ? "border-emerald-600 bg-emerald-600 text-white shadow-xs"
                             : "border-slate-200 bg-slate-50/70 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800"

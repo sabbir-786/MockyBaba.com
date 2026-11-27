@@ -6,13 +6,17 @@ import {
   ArrowLeft,
   BarChart3,
   CheckCircle2,
+  Clock,
+  Eye,
   ListChecks,
   Loader2,
   Target,
   Timer,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { getUserExamHistory } from "../services/examService";
+import { deleteExamAttempt, getUserExamHistory } from "../services/examService";
+import { syncUserLeaderboard } from "../services/leaderboardService";
 
 /* ------------------------------------------------------------------ */
 /* Tunable thresholds                                                  */
@@ -50,6 +54,17 @@ const fmtDuration = (sec) => {
 const fmtDate = (ms) =>
   ms
     ? new Date(ms).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+    : "Just now";
+
+const fmtDateTime = (ms) =>
+  ms
+    ? new Date(ms).toLocaleString("en-IN", {
+        day: "numeric",
+        month: "short",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
     : "Just now";
 
 const dayKey = (ms) => {
@@ -110,13 +125,18 @@ const TONES = {
 /* ------------------------------------------------------------------ */
 /* Small UI pieces                                                     */
 /* ------------------------------------------------------------------ */
-function Card({ title, subtitle, children }) {
+function Card({ title, subtitle, action, children }) {
   return (
     <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs sm:p-5">
-      <h2 className="text-sm font-extrabold tracking-tight text-slate-900 sm:text-base">
-        {title}
-      </h2>
-      {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-extrabold tracking-tight text-slate-900 sm:text-base">
+            {title}
+          </h2>
+          {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -139,11 +159,7 @@ function StatTile({ icon: Icon, label, value, hint }) {
 
 function Chips({ options, value, onChange, label }) {
   return (
-    <div
-      className="flex flex-wrap gap-2"
-      role="group"
-      aria-label={label}
-    >
+    <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
       {options.map((o) => {
         const active = value === o.value;
         return (
@@ -336,6 +352,11 @@ export default function Statistics() {
   const [subject, setSubject] = useState("all");
   const [level, setLevel] = useState("all");
 
+  // Saved scores delete & pagination states
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [showAllScores, setShowAllScores] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -358,6 +379,29 @@ export default function Statistics() {
       cancelled = true;
     };
   }, [currentUser?.uid]);
+
+  const handleDeleteAttempt = async (attemptId) => {
+    if (!attemptId) return;
+    setDeletingId(attemptId);
+    setError("");
+    try {
+      await deleteExamAttempt(attemptId);
+      setHistory((prev) => prev.filter((item) => item.id !== attemptId));
+      setConfirmDeleteId(null);
+
+      // Runs in the background: a sync failure won't count as a delete failure
+      if (currentUser) {
+        syncUserLeaderboard(currentUser).catch((err) => {
+          console.error("Leaderboard sync failed:", err);
+        });
+      }
+    } catch (err) {
+      console.error("Failed to delete attempt:", err);
+      setError("Score delete nahi hua. Internet ya Firestore rules check karo.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const subjectOptions = useMemo(() => {
     const ids = [...new Set(history.map((a) => a.subjectId).filter(Boolean))];
@@ -424,7 +468,6 @@ export default function Statistics() {
       .filter((t) => t.graded > 0);
   }, [filtered]);
 
-  // Weak first: judged topics only, lowest accuracy on top
   const weakTopics = useMemo(
     () =>
       topicRows
@@ -442,7 +485,10 @@ export default function Statistics() {
     [topicRows]
   );
 
-  const recent = useMemo(() => filtered.slice(0, 6), [filtered]);
+  const visibleScores = useMemo(
+    () => (showAllScores ? filtered : filtered.slice(0, 6)),
+    [filtered, showAllScores]
+  );
 
   /* ----------------------------- render ----------------------------- */
   return (
@@ -507,7 +553,7 @@ export default function Statistics() {
           </div>
         )}
 
-        {!loading && !error && history.length > 0 && (
+        {!loading && history.length > 0 && (
           <>
             {/* Filters */}
             <div className="space-y-2.5">
@@ -621,7 +667,9 @@ export default function Statistics() {
                                   slow ? TONES.amber.chip : TONES.rose.chip
                                 }`}
                               >
-                                {slow ? "Slow and inaccurate: concept gap" : "Fast but wrong: careless or trap"}
+                                {slow
+                                  ? "Slow and inaccurate: concept gap"
+                                  : "Fast but wrong: careless or trap"}
                               </span>
                             </div>
                           </li>
@@ -666,10 +714,16 @@ export default function Statistics() {
 
                 {/* Strong topics */}
                 {strongTopics.length > 0 && (
-                  <Card title="Strong topics" subtitle={`${STRONG_FROM}%+ accuracy. Revise once a week to keep them.`}>
+                  <Card
+                    title="Strong topics"
+                    subtitle={`${STRONG_FROM}%+ accuracy. Revise once a week to keep them.`}
+                  >
                     <ul className="divide-y divide-slate-100">
                       {strongTopics.map((t) => (
-                        <li key={t.key} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                        <li
+                          key={t.key}
+                          className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+                        >
                           <p className="truncate text-sm font-semibold">{t.name}</p>
                           <span className="shrink-0 text-sm font-extrabold tabular-nums text-emerald-700">
                             {t.accuracy}%
@@ -685,32 +739,117 @@ export default function Statistics() {
                   <WeekBars attempts={filtered} />
                 </Card>
 
-                {/* Recent */}
-                <Card title="Recent sets">
+                {/* Saved scores / Recent sets */}
+                <Card
+                  title="Saved scores"
+                  subtitle={`${filtered.length} saved ${filtered.length === 1 ? "attempt" : "attempts"}`}
+                  action={
+                    filtered.length > 6 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllScores((v) => !v)}
+                        className="shrink-0 text-xs font-bold text-emerald-700 hover:text-emerald-800"
+                      >
+                        {showAllScores ? "Show less" : `View all (${filtered.length})`}
+                      </button>
+                    )
+                  }
+                >
                   <ul className="divide-y divide-slate-100">
-                    {recent.map((a) => {
+                    {visibleScores.map((a) => {
                       const graded = (a.correctAnswers || 0) + (a.wrongAnswers || 0);
                       const st = statusOf(a.accuracy, Math.max(graded, MIN_GRADED));
+                      const isConfirming = confirmDeleteId === a.id;
+                      const isDeleting = deletingId === a.id;
+
                       return (
-                        <li key={a.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                          <div className="min-w-0">
+                        <li
+                          key={a.id}
+                          className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                        >
+                          <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-bold">
                               {a.topicName || a.chapterName || "Practice set"}
                             </p>
-                            <p className="truncate text-xs text-slate-500">
-                              {fmtDate(toMillis(a.submittedAt))} ·{" "}
-                              {a.attemptedQuestions || 0}/{a.totalQuestions || 0} attempted ·{" "}
-                              {fmtDuration(a.timeTakenSeconds)}
-                              {a.overtimeSeconds > 0 ? " (overtime)" : ""}
+                            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-slate-500">
+                              <span className="inline-flex items-center gap-1 font-medium text-slate-600">
+                                <Clock size={11} aria-hidden="true" />
+                                {fmtDateTime(toMillis(a.submittedAt))}
+                              </span>
+                              <span>·</span>
+                              <span>
+                                Score:{" "}
+                                <strong className="font-semibold text-slate-700">
+                                  {a.score != null
+                                    ? a.score
+                                    : `${a.correctAnswers || 0}/${a.totalQuestions || 0}`}
+                                </strong>
+                              </span>
+                              <span>·</span>
+                              <span>
+                                {fmtDuration(a.timeTakenSeconds)}
+                                {a.overtimeSeconds > 0 ? " (overtime)" : ""}
+                              </span>
                             </p>
                           </div>
-                          <span
-                            className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold tabular-nums ${
-                              graded > 0 ? TONES[st.tone === "slate" ? "slate" : st.tone].chip : TONES.slate.chip
-                            }`}
-                          >
-                            {graded > 0 ? `${a.accuracy}%` : "Ungraded"}
-                          </span>
+
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-xs font-bold tabular-nums ${
+                                graded > 0 ? TONES[st.tone].chip : TONES.slate.chip
+                              }`}
+                            >
+                              {graded > 0 ? `${a.accuracy}%` : "Ungraded"}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate(`/statistics/${a.id}`, { state: { attempt: a } })
+                              }
+                              aria-label="View saved score"
+                              title="View score details"
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800"
+                            >
+                              <Eye size={14} aria-hidden="true" />
+                              <span className="hidden sm:inline">View</span>
+                            </button>
+
+                            {isConfirming ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  disabled={isDeleting}
+                                  onClick={() => handleDeleteAttempt(a.id)}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-bold text-white transition-colors hover:bg-rose-700 disabled:opacity-50"
+                                >
+                                  {isDeleting ? (
+                                    <Loader2 size={12} className="animate-spin" />
+                                  ) : (
+                                    "Confirm"
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isDeleting}
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteId(a.id)}
+                                aria-label="Delete saved score"
+                                title="Delete score"
+                                className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                              >
+                                <Trash2 size={14} aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
                         </li>
                       );
                     })}

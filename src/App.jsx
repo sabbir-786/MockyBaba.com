@@ -11,6 +11,10 @@ import PracticeSheet from "./pages/PracticeSheet";
 import PracticeGrading from "./pages/PracticeGrading";
 import PracticeResult from "./pages/PracticeResult";
 import Statistics from "./pages/Statistics";
+import ScoreView from "./pages/ScoreView";
+import Leaderboard from "./pages/Leaderboard";
+import UserProfileView from "./pages/UserProfileView";
+
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -25,7 +29,6 @@ const protect = (element) => <ProtectedRoute>{element}</ProtectedRoute>;
 export default function App() {
   return (
     <div className="app-container">
-      
       <ScrollToTop />
 
       <div id="main-content" className="app-main" tabIndex={-1}>
@@ -47,8 +50,15 @@ export default function App() {
           <Route path="/practice/grading" element={protect(<PracticeGrading />)} />
           <Route path="/practice/result" element={protect(<PracticeResult />)} />
 
-          Later phases (uncomment as each file is created)
+          {/* Statistics & Score Details */}
           <Route path="/statistics" element={protect(<Statistics />)} />
+          <Route path="/statistics/:attemptId" element={protect(<ScoreView />)} />
+
+
+          <Route path="/leaderboard" element={protect(<Leaderboard />)} />
+<Route path="/leaderboard/:userId" element={protect(<UserProfileView />)} />
+
+          {/* Later phases (uncomment as each file is created) */}
           {/* <Route
             path="/admin"
             element={
@@ -57,7 +67,6 @@ export default function App() {
               </ProtectedRoute>
             }
           /> */}
-         
 
           {/* Catch-all fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

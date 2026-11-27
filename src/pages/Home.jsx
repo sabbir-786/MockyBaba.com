@@ -16,10 +16,26 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Trophy,
+  User,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { getUserExamHistory } from "../services/examService";
 import { DEFAULT_CHAPTERS } from "../services/topicService";
+import { getTopUsers } from "../services/leaderboardService";
+
+const HOME_LEADERBOARD_LIMIT = 5;
+
+const LEADERBOARD_TABS = [
+  { value: "totalMarks", label: "Top Scorers" },
+  { value: "totalAttempted", label: "Most Attempted" },
+];
+
+const RANK_STYLES = [
+  "border-amber-200 bg-amber-100 text-amber-800",
+  "border-slate-300 bg-slate-200 text-slate-800",
+  "border-orange-200 bg-orange-100 text-orange-800",
+];
 
 // Tailwind CSS v4 — Full Light UI
 const SUBJECTS = [
@@ -263,6 +279,187 @@ function SubjectCard({ subject, loading, failed, onOpen }) {
   );
 }
 
+function Avatar({ src }) {
+  const [failedSrc, setFailedSrc] = useState(null);
+
+  if (!src || failedSrc === src) {
+    return (
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-500">
+        <User size={16} aria-hidden="true" />
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt=""
+      referrerPolicy="no-referrer"
+      onError={() => setFailedSrc(src)}
+      className="size-9 shrink-0 rounded-full border border-slate-200 object-cover"
+    />
+  );
+}
+
+function HomeLeaderboard({ currentUserId, onViewAll, onOpenUser }) {
+  const [tab, setTab] = useState("totalMarks");
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setFailed(false);
+
+    (async () => {
+      try {
+        const data = await getTopUsers(tab);
+        if (active) setUsers(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Failed to load leaderboard:", error);
+        if (active) setFailed(true);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [tab, currentUserId, retryKey]);
+
+  return (
+    <section className="pt-12 sm:pt-14" aria-labelledby="leaderboard-title">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-extrabold tracking-[0.17em] text-emerald-600">
+            COMMUNITY RANKING
+          </p>
+          <h2
+            id="leaderboard-title"
+            className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-[30px]"
+          >
+            Leaderboard<span className="text-emerald-600">.</span>
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            Top {HOME_LEADERBOARD_LIMIT} aspirants. Tap a user to view details.
+          </p>
+        </div>
+
+        <div
+          className="grid w-full grid-cols-2 gap-1.5 rounded-2xl border border-slate-200/80 bg-white p-1.5 shadow-2xs sm:w-auto"
+          role="group"
+          aria-label="Sort leaderboard"
+        >
+          {LEADERBOARD_TABS.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              aria-pressed={tab === item.value}
+              onClick={() => setTab(item.value)}
+              className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${
+                tab === item.value
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+        {loading ? (
+          <p role="status" className="py-10 text-center text-sm text-slate-500">
+            Loading leaderboard...
+          </p>
+        ) : failed ? (
+          <div role="alert" className="px-4 py-10 text-center text-sm text-amber-900">
+            <p>Could not load the leaderboard.</p>
+            <button
+              type="button"
+              onClick={() => setRetryKey((key) => key + 1)}
+              className="mt-3 inline-flex items-center gap-2 font-semibold underline underline-offset-4"
+            >
+              <RefreshCw size={15} aria-hidden="true" /> Retry
+            </button>
+          </div>
+        ) : users.length === 0 ? (
+          <p className="px-4 py-10 text-center text-sm text-slate-500">
+            No ranked users yet. Finish a practice set to appear here.
+          </p>
+        ) : (
+          <ol className="divide-y divide-slate-100">
+            {users.slice(0, HOME_LEADERBOARD_LIMIT).map((user, index) => {
+              const isMe = user.userId === currentUserId;
+
+              return (
+                <li key={user.id}>
+                  <button
+                    type="button"
+                    onClick={() => onOpenUser(user)}
+                    className={`flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-emerald-50/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-600 sm:px-5 ${
+                      isMe ? "bg-emerald-50/40" : ""
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span
+                        className={`flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-extrabold tabular-nums ${
+                          RANK_STYLES[index] || "border-slate-200 bg-slate-50 text-slate-600"
+                        }`}
+                      >
+                        {index + 1}
+                      </span>
+
+                      <Avatar src={user.photoURL} />
+
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate text-sm font-bold text-slate-900">
+                            {user.displayName || "Student"}
+                          </span>
+                          {isMe && (
+                            <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                              You
+                            </span>
+                          )}
+                        </span>
+                        <span className="block truncate text-xs text-slate-500">
+                          {user.totalSets || 0} sets · {user.accuracy || 0}% accuracy
+                        </span>
+                      </span>
+                    </span>
+
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="text-sm font-extrabold tabular-nums text-slate-900">
+                        {tab === "totalMarks"
+                          ? `${user.totalMarks ?? 0} pts`
+                          : `${user.totalAttempted ?? 0} Qs`}
+                      </span>
+                      <ChevronRight size={16} className="text-slate-400" aria-hidden="true" />
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+
+        <button
+          type="button"
+          onClick={onViewAll}
+          className="flex w-full items-center justify-center gap-2 border-t border-slate-100 bg-emerald-50/60 px-4 py-3 text-sm font-semibold text-emerald-800 transition-colors hover:bg-emerald-600 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-600"
+        >
+          View Top 10 <ArrowRight size={16} aria-hidden="true" />
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   const { userProfile, currentUser, logout } = useAuth();
   const navigate = useNavigate();
@@ -347,6 +544,9 @@ export default function Home() {
 
   const openSubject = (subjectId) => navigate(`/subject/${subjectId}`);
   const openStatistics = () => navigate("/statistics");
+  const openLeaderboard = () => navigate("/leaderboard");
+  const openLeaderboardUser = (user) =>
+    navigate(`/leaderboard/${user.userId}`, { state: { profile: user } });
 
   const handleLogout = async () => {
     try {
@@ -391,6 +591,17 @@ export default function Home() {
             >
               <BarChart3 size={16} aria-hidden="true" />
               <span className="hidden sm:inline">Statistics</span>
+            </button>
+
+            {/* Leaderboard link */}
+            <button
+              type="button"
+              onClick={openLeaderboard}
+              aria-label="Leaderboard"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:px-3.5 sm:text-sm"
+            >
+              <Trophy size={16} aria-hidden="true" />
+              <span className="hidden sm:inline">Leaderboard</span>
             </button>
 
             <div className="flex items-center gap-2.5" title={displayName}>
@@ -571,6 +782,13 @@ export default function Home() {
             footnote="Your curriculum"
           />
         </section>
+
+        {/* Leaderboard */}
+        <HomeLeaderboard
+          currentUserId={currentUser?.uid}
+          onViewAll={openLeaderboard}
+          onOpenUser={openLeaderboardUser}
+        />
 
         {/* Subject Cards */}
         <section
