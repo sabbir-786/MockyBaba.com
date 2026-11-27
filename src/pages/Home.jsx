@@ -346,6 +346,7 @@ export default function Home() {
   const statsUnavailable = loadingStats || statsError;
 
   const openSubject = (subjectId) => navigate(`/subject/${subjectId}`);
+  const openStatistics = () => navigate("/statistics");
 
   const handleLogout = async () => {
     try {
@@ -380,6 +381,18 @@ export default function Home() {
               <Target size={14} className="shrink-0 text-emerald-600" aria-hidden="true" />
               <span className="truncate">{targetExam}</span>
             </span>
+
+            {/* Statistics link */}
+            <button
+              type="button"
+              onClick={openStatistics}
+              aria-label="Statistics"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:px-3.5 sm:text-sm"
+            >
+              <BarChart3 size={16} aria-hidden="true" />
+              <span className="hidden sm:inline">Statistics</span>
+            </button>
+
             <div className="flex items-center gap-2.5" title={displayName}>
               <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-xs font-extrabold text-emerald-800">
                 {initials}
@@ -489,6 +502,16 @@ export default function Home() {
                   </p>
                 </div>
               </div>
+
+              {/* Statistics link */}
+              <button
+                type="button"
+                onClick={openStatistics}
+                className="mt-4 flex w-full items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 transition-colors hover:border-emerald-600 hover:bg-emerald-600 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+              >
+                <span>View full statistics</span>
+                <ArrowRight size={17} aria-hidden="true" />
+              </button>
             </div>
           </div>
         </section>

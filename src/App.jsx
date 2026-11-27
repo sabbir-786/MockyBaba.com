@@ -10,6 +10,7 @@ import PracticeSetup from "./pages/PracticeSetup";
 import PracticeSheet from "./pages/PracticeSheet";
 import PracticeGrading from "./pages/PracticeGrading";
 import PracticeResult from "./pages/PracticeResult";
+import Statistics from "./pages/Statistics";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -46,17 +47,17 @@ export default function App() {
           <Route path="/practice/grading" element={protect(<PracticeGrading />)} />
           <Route path="/practice/result" element={protect(<PracticeResult />)} />
 
-          {/* Later phases (uncomment as each file is created)
+          Later phases (uncomment as each file is created)
           <Route path="/statistics" element={protect(<Statistics />)} />
-          <Route
+          {/* <Route
             path="/admin"
             element={
               <ProtectedRoute requireAdmin>
                 <AdminDashboard />
               </ProtectedRoute>
             }
-          />
-          */}
+          /> */}
+         
 
           {/* Catch-all fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
